@@ -243,10 +243,11 @@ Prepare data and model
 # ===== Complete the code =====
 class Config:
     num_training_steps = -1
+    num_train_epochs = 10
     # total batch size = per_device_train_batch_size * gradient_accumulation_steps,
     # I suggest you to set the total batch size no less than 32,
     # for example, per_device_train_batch_size = 2, gradient_accumulation_steps = 16
-    per_device_train_batch_size = 2
+    per_device_train_batch_size = 4
     gradient_accumulation_steps = 8
     learning_rate = 2e-5
     weight_decay = 0.01
@@ -260,7 +261,7 @@ class Config:
     fp16=False
     bf16=True
     # I suggest 512 if you have enough GPU memory, 256 if you have limited GPU memory
-    max_length= 256
+    max_length= 512
     max_grad_norm=1.0 # I suggest 1.0, you can try other values
     report_to="none", # optional, if you want to use wandb it is also ok
     run_name="assignment5",
@@ -288,7 +289,7 @@ set_random_seed(config.seed)
 # Load model and tokenizer
 # raw_train_dataset = datasets.load_dataset("allenai/c4", "en", split="train", streaming=True)
 # raw_train_dataset = raw_train_dataset.take(16)
-raw_train_dataset = datasets.load_from_disk(r"D:\Workspace\project1\CS5242.in\assignment5\data\c4_subset_6400")
+raw_train_dataset = datasets.load_from_disk(r"D:\Workspace\project1\CS5242.in\assignment5\data\c4_subset_12800")
 
 # load the model and tokenizer, we train the model from scratch!
 # you are not allowed to load the model from pretrained.
@@ -402,11 +403,15 @@ params_groups = [
 from transformers import get_scheduler
 optimizer = SingleDeviceMuonWithAuxAdam(params_groups)
 # you can also use other scheduler
+steps_per_epoch = math.ceil(
+    len(train_dataset) / 
+    (config.per_device_train_batch_size * config.gradient_accumulation_steps * max(1, torch.cuda.device_count()))
+)
 scheduler = get_scheduler(
     "cosine",
     optimizer,
     num_warmup_steps=config.warmup_steps,
-    num_training_steps=config.num_training_steps,
+    num_training_steps=config.num_train_epochs * steps_per_epoch,
 )
 
 """# Step 3
@@ -433,6 +438,7 @@ training_args = TrainingArguments(
     gradient_checkpointing=config.gradient_checkpointing,
     dataloader_drop_last=bool(config.dataloader_drop_last),                    # Optional: if the last batch is not full, set it to True
     include_num_input_tokens_seen=config.include_num_input_tokens_seen,
+    num_train_epochs = config.num_train_epochs 
 )
 
 # Data collator
